@@ -49,11 +49,14 @@ public defstruct AsmStubs :
   stack-limit:Int
   registers:Int
   system-registers-space:Int
-  heap:Int
+  heap-start:Int
   heap-top:Int
   heap-limit:Int
-  free:Int
-  free-limit:Int
+  heap-bitset: Int
+  heap-size:Int
+  marking-stack-start: Int
+  marking-stack-bottom: Int
+  marking-stack-top: Int
   current-stack:Int
   system-stack:Int
   saved-c-rsp:Int
@@ -92,11 +95,14 @@ public defn AsmStubs (backend:Backend) :
     next(id-counter)  ;stack-limit:Int
     next(id-counter)  ;registers:Int  
     next(id-counter)  ;system-registers-space:Int
-    next(id-counter)  ;heap:Int
+    next(id-counter)  ;heap-start:Int
     next(id-counter)  ;heap-top:Int
     next(id-counter)  ;heap-limit:Int
-    next(id-counter)  ;free:Int
-    next(id-counter)  ;free-limit:Int
+    next(id-counter)  ;heap-bitset:Int
+    next(id-counter)  ;heap-size:Int
+    next(id-counter)  ;marking-stack-start: Int
+    next(id-counter)  ;marking-stack-bottom: Int
+    next(id-counter)  ;marking-stack-top: Int
     next(id-counter)  ;current-stack:Int
     next(id-counter)  ;system-stack:Int
     next(id-counter)  ;saved-c-rsp:Int
@@ -130,11 +136,14 @@ public defn compile-runtime-stubs (emitter:CodeEmitter, stubs:AsmStubs) :
   println("//stack-limit = %_" % [stack-limit(stubs)])
   println("//registers = %_" % [registers(stubs)])
   println("//system-registers-space = %_" % [system-registers-space(stubs)])
-  println("//heap = %_" % [heap(stubs)])
+  println("//heap-start = %_" % [heap-start(stubs)])
   println("//heap-top = %_" % [heap-top(stubs)])
   println("//heap-limit = %_" % [heap-limit(stubs)])
-  println("//free = %_" % [free(stubs)])
-  println("//free-limit = %_" % [free-limit(stubs)])
+  println("//heap-bitset = %_" % [heap-bitset(stubs)])
+  println("//heap-size = %_" % [heap-size(stubs)])
+  println("//marking-stack-start = %_" % [marking-stack-start(stubs)])
+  println("//marking-stack-bottom = %_" % [marking-stack-bottom(stubs)])
+  println("//marking-stack-top = %_" % [marking-stack-top(stubs)])
   println("//current-stack = %_" % [current-stack(stubs)])
   println("//saved-c-rsp = %_" % [saved-c-rsp(stubs)])
   println("//swap-lbl = %_" % [swap-lbl(stubs)])
@@ -195,11 +204,18 @@ public defn compile-entry-function (emitter:CodeEmitter, stubs:AsmStubs) :
                                #long()                        ;data-offsets: ptr<int>
                                #long()                        ;data-mem: ptr<byte>
                                #long()                        ;code-offsets: ptr<int>
-    #L(heap)                   #long()                        ;heap: ptr<long>      
-    #L(heap-top)               #long()                        ;heap-top: ptr<long>  
-    #L(heap-limit)             #long()                        ;heap-limit: ptr<long>
-    #L(free)                   #long()                        ;free: ptr<long>      
-    #L(free-limit)             #long()                        ;free-limit: ptr<long>
+    #L(heap-top)               #long()                        ;heap.start: ptr<long>
+    #L(heap-limit)             #long()                        ;heap.top: ptr<long>
+    #L(heap-start)             #long()                        ;heap.limit: ptr<long>
+    #L(heap-bitset)            #long()                        ;heap.bitset: ptr<long>
+    #L(heap-size)              #long()                        ;heap.size: long
+                               #long()                        ;heap.compaction-start: ptr<long>
+                               #long()                        ;heap.log2-bucket-size: long
+    #L(marking-stack-start)    #long()                        ;heap.stack-start: ptr<long>
+    #L(marking-stack-bottom)   #long()                        ;heap.stack-bottom: ptr<long>
+    #L(marking-stack-top)      #long()                        ;heap.stack-top: ptr<long>
+                               #long()                        ;heap.min-incomplete: ptr<?>
+                               #long()                        ;heap.max-incomplete: ptr<?>
     #L(current-stack)          #long()                        ;current-stack: long
     #L(system-stack)           #long()                        ;system-stack: long
     #L(system-registers)       #label(system-registers-space) ;system-registers: ptr<long>
@@ -227,17 +243,20 @@ public defn compile-entry-function (emitter:CodeEmitter, stubs:AsmStubs) :
     defn save (i:Int, n:AsmStubs -> Int) :
       E $ LoadL(TMP, A0, i * 8)
       E $ StoreL(M(n(stubs)), TMP)
-    save(0, heap)
+    save(0, heap-start)
     save(1, heap-top)
     save(2, heap-limit)
-    save(3, free)
-    save(4, free-limit)
-    save(5, current-stack)
-    save(6, system-stack)
+    save(3, heap-bitset)
+    save(4, heap-size)
+    save(5, marking-stack-start)
+    save(6, marking-stack-bottom)
+    save(7, marking-stack-top)
+    save(8, current-stack)
+    save(9, system-stack)
 
   ;Load the stack pointer
   val frames-offset = 8 + 8 - 1
-  E $ LoadL(TMP, A0, 5 * 8)
+  E $ LoadL(TMP, A0, 8 * 8)
   E $ LoadL(RSP, TMP, frames-offset)
 
   ;Set stack limit

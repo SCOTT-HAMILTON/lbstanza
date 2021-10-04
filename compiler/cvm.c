@@ -387,31 +387,30 @@
 //==================== Machine Types =========================
 //============================================================
 
+//The first fields in VMState are used by the core library
+//in both compiled and interpreted mode. The last fields
+//are used only in interpreted mode.
+//Permanent state changes in-between each code load.
+//Variable state changes in-between each boundary change.
 typedef struct{
-  //Permanent State
-  //Changes in-between each code load
-  char* instructions;
-  uint64_t* registers;
-  uint64_t* global_offsets;
-  char* global_mem;
-  uint64_t* const_table;
-  char* const_mem;
-  uint32_t* data_offsets;
-  char* data_mem;
-  uint32_t* code_offsets;
-  //Variable State
-  //Changes in_between each boundary change
-  char* heap;
-  char* heap_top;
-  char* heap_limit;
-  char* free;
-  char* free_limit;
-  uint64_t current_stack;
-  //System state
-  uint64_t system_stack;  
-  uint64_t* system_registers;
-  //Trie table
-  void** trie_table;
+  uint64_t* global_offsets;   //(Permanent State)
+  char* global_mem;           //(Permanent State)
+  uint64_t* const_table;      //(Permanent State)
+  char* const_mem;            //(Permanent State)
+  uint32_t* data_offsets;     //(Permanent State)
+  char* data_mem;             //(Permanent State)
+  uint32_t* code_offsets;     //(Permanent State)
+  uint64_t current_stack;     //(Variable State)
+  uint64_t system_stack;      //(Variable State)
+  uint64_t* registers;        //(Permanent State)
+  uint64_t* system_registers; //(Permanent State)
+  char* instructions;         //(Permanent State)
+  char* heap;                 //(Variable State)
+  char* heap_top;             //(Variable State)
+  char* heap_limit;           //(Variable State)
+  char* free;                 //(Variable State)
+  char* free_limit;           //(Variable State)
+  void** trie_table;          //(Permanent State)
 } VMState;
 
 typedef struct{

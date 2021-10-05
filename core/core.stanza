@@ -1045,6 +1045,8 @@ lostanza defn extend-stack (size:long) -> long :
 ;============= Garbage Collector with Resizing ==============
 ;============================================================
 
+
+
 ;Uses virtual memory system to allocate more pages.
 ;- space is a pointer to a virtual address region created using mmap.
 ;- current-size is the current number of bytes that has been concretely allocated.
@@ -1053,12 +1055,20 @@ public lostanza defn stz-memory-resize (space:ptr<long>, current-size:long, desi
   call-c clib/stz_memory_resize(space, current-size, desired-size)
   return space + desired-size
 
+public lostanza defn now-time () -> long :
+  return call-c clib/current_time_ms()
+
+lostanza var start-time-in-program:long = now-time()
+lostanza var total-time-in-gc:long = 0L
+
 ;This function is called by the "call-prim collect-garbage" primitive.
 ;It runs the garbage collector, and returns the new number of bytes
 ;remaining after the garbage collector runs.
 ;- size: the number of bytes that we desire from the heap. This is
 ;  used to compute whether or not to grow the heap. 
 lostanza defn collect-garbage (size:long) -> long :
+  val t0 = now-time()
+  
   ;Retrieve state
   val vms:ptr<VMState> = call-prim flush-vm()
 
@@ -1090,7 +1100,23 @@ lostanza defn collect-garbage (size:long) -> long :
     expand-heap(desired-space, vms)
 
   ;Return the remaining space
-  return vms.heap.limit - vms.heap.top
+  val remaining = vms.heap.limit - vms.heap.top
+
+  val t1 = now-time()
+  val gctime = t1 - t0
+  total-time-in-gc = total-time-in-gc + gctime
+  val total-time-in-program = t1 - start-time-in-program
+  val used-space = vms.heap.top - vms.heap.start
+  call-c clib/printf("[Garbage Collection Statistics]\n")
+  call-c clib/printf("Time spent in GC: %ld ms\n", gctime)
+  call-c clib/printf("Total Time spent in program: %ld ms\n", total-time-in-program)
+  call-c clib/printf("Total Time spent in GC: %ld ms\n", total-time-in-gc)
+  call-c clib/printf("Percentage of Time in GC: %f\n", (100.0f * total-time-in-gc as float) / total-time-in-program as float)  
+  call-c clib/printf("Heap size: %ld bytes\n", vms.heap.limit - vms.heap.start)
+  call-c clib/printf("Remaining space: %ld bytes\n", remaining)
+  call-c clib/printf("Used Space: %ld bytes\n\n\n", used-space)
+
+  return remaining
 
 ;============================================================
 ;================== New Garbage Collector ===================

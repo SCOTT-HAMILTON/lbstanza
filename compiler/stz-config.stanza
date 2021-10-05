@@ -269,8 +269,9 @@ defn verify-installation () :
       throw $ Exception(msg % [STANZA-INSTALL-DIR, v, this-v])           
 
   ;Check conditions
-  ensure-license-exists!()
-  ensure-matching-version!()  
+  false
+  ;ensure-license-exists!()
+  ;ensure-matching-version!()  
 
 ;============================================================
 ;============= Environment Variable Substitution ============

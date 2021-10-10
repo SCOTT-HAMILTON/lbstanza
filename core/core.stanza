@@ -1111,6 +1111,10 @@ lostanza defn collect-garbage (size:long) -> long :
   call-c clib/printf("Time spent in GC: %ld ms\n", gctime)
   call-c clib/printf("Total Time spent in program: %ld ms\n", total-time-in-program)
   call-c clib/printf("Total Time spent in GC: %ld ms\n", total-time-in-gc)
+  call-c clib/printf("  Total Time spent in Mark Phase: %ld ms\n", total-time-in-mark)
+  call-c clib/printf("  Total Time spent in Break Table Phase: %ld ms\n", total-time-in-break-table)
+  call-c clib/printf("  Total Time spent in Relocate Phase: %ld ms\n", total-time-in-relocate)
+  call-c clib/printf("  Total Time spent in Compact Phase: %ld ms\n", total-time-in-compact)
   call-c clib/printf("Percentage of Time in GC: %f\n", (100.0f * total-time-in-gc as float) / total-time-in-program as float)  
   call-c clib/printf("Heap size: %ld bytes\n", vms.heap.limit - vms.heap.start)
   call-c clib/printf("Remaining space: %ld bytes\n", remaining)
@@ -2092,6 +2096,11 @@ lostanza defn ensure-no-marks-in-collection-area! (vms:ptr<VMState>) -> ref<Fals
   ;No meaningful return value
   return false
 
+lostanza var total-time-in-mark:long = 0L
+lostanza var total-time-in-break-table:long = 0L
+lostanza var total-time-in-relocate:long = 0L
+lostanza var total-time-in-compact:long = 0L
+
 lostanza defn collect-garbage (vms:ptr<VMState>) -> ref<False> :
   ;Precondition: No objects should be marked.
   ensure-no-marks-in-collection-area!(vms)
@@ -2103,19 +2112,32 @@ lostanza defn collect-garbage (vms:ptr<VMState>) -> ref<False> :
   ;4) Compact
 
   ;Phase 1. Mark
+  val t0 = now-time()
   mark-reachable-objects(vms)
   scan-liveness-trackers(vms)
+  val t1 = now-time()
+
+  ;Increment total time in mark phase
+  total-time-in-mark = total-time-in-mark + t1 - t0
 
   ;Find the first unmarked object. If there is one, then this is where
   ;compaction begins.
   val compaction-start = skip-and-clear-marked(vms.heap.start, vms)
   if compaction-start < vms.heap.top :
-    ;Phase 2. Construct break table
+    ;Phase 2. Construct break table    
     create-break-table(compaction-start, vms)
     ;Phase 3. Relocate references
+    val t2 = now-time()
     relocate-references(vms)
     ;Phase 4. Compact
+    val t3 = now-time()
     compact(vms)
+    val t4 = now-time()
+
+    ;Increment total time in other phases
+    total-time-in-break-table = total-time-in-break-table + t2 - t1
+    total-time-in-relocate = total-time-in-relocate + t3 - t2
+    total-time-in-compact = total-time-in-compact + t4 - t3    
 
   ;Post condition: All marks should be cleared.
   ensure-no-marks-in-collection-area!(vms)

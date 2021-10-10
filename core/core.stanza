@@ -1107,14 +1107,20 @@ lostanza defn collect-garbage (size:long) -> long :
   total-time-in-gc = total-time-in-gc + gctime
   val total-time-in-program = t1 - start-time-in-program
   val used-space = vms.heap.top - vms.heap.start
+  total-references = total-references + num-references
+  total-forward-references = total-forward-references + num-forward-references
   call-c clib/printf("[Garbage Collection Statistics]\n")
   call-c clib/printf("Time spent in GC: %ld ms\n", gctime)
+  call-c clib/printf("  Number of References: %ld\n", num-references)
+  call-c clib/printf("  Number of Forward References: %ld\n", num-forward-references)
   call-c clib/printf("Total Time spent in program: %ld ms\n", total-time-in-program)
   call-c clib/printf("Total Time spent in GC: %ld ms\n", total-time-in-gc)
   call-c clib/printf("  Total Time spent in Mark Phase: %ld ms\n", total-time-in-mark)
   call-c clib/printf("  Total Time spent in Break Table Phase: %ld ms\n", total-time-in-break-table)
   call-c clib/printf("  Total Time spent in Relocate Phase: %ld ms\n", total-time-in-relocate)
   call-c clib/printf("  Total Time spent in Compact Phase: %ld ms\n", total-time-in-compact)
+  call-c clib/printf("  Total References: %ld\n", total-references)
+  call-c clib/printf("  Total Forward References: %ld\n", total-forward-references)
   call-c clib/printf("Percentage of Time in GC: %f\n", (100.0f * total-time-in-gc as float) / total-time-in-program as float)  
   call-c clib/printf("Heap size: %ld bytes\n", vms.heap.limit - vms.heap.start)
   call-c clib/printf("Remaining space: %ld bytes\n", remaining)
@@ -2017,6 +2023,11 @@ lostanza defn relocation-offset (p:ptr<?>, vms:ptr<VMState>) -> long :
   ;Return the final offset.
   return offset
 
+lostanza var num-forward-references:long = 0L
+lostanza var num-references:long = 0L
+lostanza var total-forward-references:long = 0L
+lostanza var total-references:long = 0L
+
 ;Given a pointer to an object reference, write its new value after compaction in-place.
 lostanza defn relocate-reference (ref:ptr<long>, vms:ptr<VMState>) -> ref<False> :
   ;Retrieve the value at the given heap pointer.
@@ -2026,6 +2037,12 @@ lostanza defn relocate-reference (ref:ptr<long>, vms:ptr<VMState>) -> ref<False>
   if tagbits == 1L :
     ;Remove the tag bits to retrieve the object pointer.
     val p = (v - 1) as ptr<long>  ;This decrement is not really necessary
+
+    ;Determine whether the pointer is a forward reference
+    if p > ref :
+      num-forward-references = num-forward-references + 1
+    num-references = num-references + 1
+
     ;Only pointers to objects in the compaction area are relocated.
     if p > vms.heap.compaction-start :      
       [ref] = v + relocation-offset(p, vms)
@@ -2128,6 +2145,8 @@ lostanza defn collect-garbage (vms:ptr<VMState>) -> ref<False> :
     create-break-table(compaction-start, vms)
     ;Phase 3. Relocate references
     val t2 = now-time()
+    num-forward-references = 0L
+    num-references = 0L
     relocate-references(vms)
     ;Phase 4. Compact
     val t3 = now-time()
